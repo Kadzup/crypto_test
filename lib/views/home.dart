@@ -326,6 +326,10 @@ class _ChartingSectionState extends State<ChartingSection> {
                             ),
                           );
 
+                          if (chartData.length > 15) {
+                            chartData.removeAt(0);
+                          }
+
                           log(chartData.length.toString());
                         } else {
                           log(data.toString());
