@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:crypto_test/utils/tools.dart';
+
 class MarketData {
   String symbol;
   double price;
@@ -28,27 +30,7 @@ class MarketData {
     }
 
     if (map['time'] != null) {
-      String tempTime = map['time'];
-
-      String datePart = tempTime.split("T").first;
-      var dateList = datePart.split("-");
-      String timePart = tempTime.split("T").last.replaceAll("Z", "");
-      var timeList = timePart.split(":");
-
-      time = DateTime(
-        // date
-        int.parse(dateList[0]),
-        int.parse(dateList[1]),
-        int.parse(dateList[2]),
-        // time
-        int.parse(timeList[0]),
-        int.parse(timeList[1]),
-        int.parse(timeList[2].replaceRange(
-          timeList[2].indexOf("."),
-          timeList[2].length - 1,
-          "",
-        )),
-      );
+      time = parseDateTime(map['time']);
     }
 
     return MarketData(

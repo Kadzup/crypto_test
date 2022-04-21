@@ -7,7 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ApiController {
-  final _channel = ExchangeChannel();
+  bool hasSub = false;
+  WebSocketChannel? _channel;
 
   Future<MarketData?> getMarketData(String? symbols) async {
     if (symbols == null || symbols.isEmpty) {
@@ -18,8 +19,8 @@ class ApiController {
 
     try {
       final response = await http.get(
-        Uri.parse(restAPIUrl + symbols),
-        headers: {'X-CoinAPI-Key': apiKey},
+        Uri.parse(restAPIUrl + symbols.trim()),
+        headers: {'X-CoinAPI-Key': restAPIKey},
       );
 
       return MarketData.fromJson(response.body);
@@ -29,41 +30,36 @@ class ApiController {
     }
   }
 
-  Stream listenToSymbols(String? symbols) {
+  Future<WebSocketChannel> listenToSymbols(String? symbols) async {
     if (symbols == null || symbols.isEmpty) {
       throw "Invalid symbols";
     }
 
     symbols = symbols.toUpperCase();
 
-    //_channel.close();
-    _channel.reInit();
+    if (_channel != null) {
+      await _channel!.sink.close();
+      _channel = null;
+    }
 
-    return _channel.getData(symbols);
-  }
-}
+    try {
+      _channel ??= WebSocketChannel.connect(Uri.parse(socketAPIUrl));
+      _channel!.sink.add(
+        jsonEncode(
+          {
+            "type": "hello",
+            "apikey": "EEF7E4F6-B4AA-47AF-9E5C-E7FB4DBDF85A",
+            "heartbeat": true,
+            "subscribe_data_type": ["exrate"],
+            "subscribe_filter_asset_id": [symbols],
+          },
+        ),
+      );
+    } catch (ex) {
+      log(ex.toString());
+      rethrow;
+    }
 
-class ExchangeChannel {
-  var _channel = WebSocketChannel.connect(Uri.parse(websocketAPIUrl));
-
-  void reInit() async {
-    // await close();
-    _channel = WebSocketChannel.connect(Uri.parse(websocketAPIUrl));
-  }
-
-  Future<void> close() async {
-    await _channel.sink.close();
-  }
-
-  Stream getData(String symbols) {
-    _channel.sink.add(json.encode({
-      "type": "hello",
-      "apikey": apiKey,
-      "heartbeat": true,
-      "subscribe_data_type": ["quote"],
-      "subscribe_filter_asset_id": ["BTC", "ETH"]
-    }));
-
-    return _channel.stream;
+    return _channel!;
   }
 }

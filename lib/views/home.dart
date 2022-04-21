@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:crypto_test/utils/tools.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -8,6 +9,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:crypto_test/controllers/api_controller.dart';
 import 'package:crypto_test/models/chart_data.dart';
 import 'package:crypto_test/models/market_data.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -49,7 +51,10 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             MarketDataSection(symbols: symbols, controller: apiController),
-            ChartingSection(symbols: symbols, controller: apiController),
+            ChartingSection(
+              symbols: symbols,
+              channel: apiController.listenToSymbols(symbols),
+            ),
           ],
         ),
       ),
@@ -241,12 +246,12 @@ class _DataColumn extends StatelessWidget {
 // ignore: must_be_immutable
 class ChartingSection extends StatefulWidget {
   String? symbols;
-  ApiController controller;
+  Future<WebSocketChannel> channel;
 
   ChartingSection({
     Key? key,
     required this.symbols,
-    required this.controller,
+    required this.channel,
   }) : super(key: key);
 
   @override
@@ -280,34 +285,69 @@ class _ChartingSectionState extends State<ChartingSection> {
                 border: Border.all(color: Colors.grey.shade400),
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: StreamBuilder(
-                stream: widget.controller.listenToSymbols(widget.symbols),
+              child: FutureBuilder<WebSocketChannel>(
+                future: widget.channel,
                 builder: (context, snapshot) {
                   if (ConnectionState.done != snapshot.connectionState) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (snapshot.hasData) {
-                    var data = jsonDecode(snapshot.data.toString());
+                  chartData.clear();
 
-                    if (data['type'] != "error") {
-                      log(data['type']);
-                    } else {
-                      log(data['message']);
-                    }
+                  if (snapshot.hasError) {
+                    return Expanded(
+                      child: Text(
+                        snapshot.error.toString(),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
                   }
 
-                  return SfCartesianChart(
-                    primaryXAxis: DateTimeAxis(),
-                    series: <ChartSeries>[
-                      // Renders line chart
-                      LineSeries<ChartData, DateTime>(
-                        dataSource: [],
-                        xValueMapper: (ChartData dataItem, _) =>
-                            dataItem.dateTime,
-                        yValueMapper: (ChartData dataItem, _) => dataItem.value,
-                      )
-                    ],
+                  return StreamBuilder(
+                    stream: snapshot.data!.stream,
+                    builder: (context, streamSnapshot) {
+                      if (streamSnapshot.hasError) {
+                        return Expanded(
+                          child: Text(
+                            streamSnapshot.error.toString(),
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      }
+
+                      if (streamSnapshot.hasData) {
+                        var data = jsonDecode(streamSnapshot.data.toString());
+
+                        if (data['type'] == "exrate") {
+                          chartData.add(
+                            ChartData(
+                              dateTime: parseDateTime(data['time']),
+                              value: data['rate'],
+                            ),
+                          );
+
+                          log(chartData.length.toString());
+                        } else {
+                          log(data.toString());
+                        }
+                      }
+
+                      return SfCartesianChart(
+                        primaryXAxis: DateTimeAxis(),
+                        zoomPanBehavior: ZoomPanBehavior(
+                          enablePanning: true,
+                        ),
+                        series: <ChartSeries>[
+                          LineSeries<ChartData, DateTime>(
+                            dataSource: chartData,
+                            xValueMapper: (ChartData dataItem, _) =>
+                                dataItem.dateTime,
+                            yValueMapper: (ChartData dataItem, _) =>
+                                dataItem.value,
+                          )
+                        ],
+                      );
+                    },
                   );
                 },
               ),
