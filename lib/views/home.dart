@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:crypto_test/utils/tools.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -46,8 +45,9 @@ class _HomePageState extends State<HomePage> {
             SearchArea(
               controller: searchController,
               callback: (value) {
-                symbols = value;
-                setState(() {});
+                setState(() {
+                  symbols = value;
+                });
               },
             ),
             MarketDataSection(symbols: symbols, controller: apiController),
@@ -180,6 +180,7 @@ class MarketDataSection extends StatelessWidget {
                       ],
                     );
                   }
+
                   final nFormat = NumberFormat.currency(symbol: "\$");
                   final dFormat = DateFormat("MMM d, hh:mm a");
 
@@ -319,12 +320,7 @@ class _ChartingSectionState extends State<ChartingSection> {
                         var data = jsonDecode(streamSnapshot.data.toString());
 
                         if (data['type'] == "exrate") {
-                          chartData.add(
-                            ChartData(
-                              dateTime: parseDateTime(data['time']),
-                              value: data['rate'],
-                            ),
-                          );
+                          chartData.add(ChartData.fromMap(data));
 
                           if (chartData.length > 15) {
                             chartData.removeAt(0);
